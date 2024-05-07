@@ -26,3 +26,27 @@ class DataRepository:
         return min(self.data, key=lambda r: abs(r.recorded_at - query_time))
 
 repo = DataRepository()
+
+class PollutionDataEndpoint(MethodView):
+    def post(self):
+        try:
+            data = request.json
+            new_entry = PollutionDataModel(**data)
+            repo.add_data(new_entry)
+            return jsonify(new_entry.dict()), 201
+        except ValidationError as err:
+            return jsonify({"error": str(err)}), 400
+
+    def get(self):
+        timestamp = request.args.get('timestamp')
+        if not timestamp:
+            return jsonify({"error": "Timestamp query parameter is required."}), 400
+
+        query_time = datetime.fromisoformat(timestamp)
+        closest = repo.get_nearest(query_time)
+        return jsonify(closest.dict()) if closest else jsonify({"message": "No data found."}), 404
+
+app.add_url_rule('/pollution', view_func=PollutionDataEndpoint.as_view('pollution_api'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
